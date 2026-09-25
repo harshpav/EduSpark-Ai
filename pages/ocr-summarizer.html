@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI OCR Summarizer · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">📷 AI Notes Summarizer (OCR)</h1>
+    <p class="page-subtitle">Upload a photo of handwritten or printed notes — extract text and get an AI summary.</p>
+
+    <!-- Upload Zone -->
+    <div class="card">
+      <h4>Step 1 — Upload Your Notes Photo</h4>
+      <div class="upload-zone" onclick="document.getElementById('img-input').click()">
+        <div style="font-size:2.5rem">📷</div>
+        <p>Click to upload an image (JPG, PNG, etc.)</p>
+        <p style="font-size:.8rem;color:var(--text-muted)">Works best with clear, well-lit photos</p>
+      </div>
+      <input type="file" id="img-input" accept="image/*" style="display:none" onchange="handleImage(event)"/>
+      <img id="preview-img" alt="Preview"/>
+    </div>
+
+    <!-- OCR Progress -->
+    <div class="card" id="ocr-card" style="display:none">
+      <h4>Step 2 — OCR Progress</h4>
+      <div class="progress-row">
+        <span id="ocr-status">Initializing…</span>
+        <progress id="ocr-progress" value="0" max="100"></progress>
+        <span id="ocr-pct">0%</span>
+      </div>
+    </div>
+
+    <!-- Extracted Text (editable) -->
+    <div class="card" id="extracted-card" style="display:none">
+      <h4>Step 3 — Extracted Text (you can edit this)</h4>
+      <div class="form-group" style="margin:0">
+        <textarea id="extracted-text" rows="8" placeholder="Extracted text will appear here…"></textarea>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="summarizeText()">🤖 Summarize with AI</button>
+        <button class="btn-secondary" onclick="copyText(document.getElementById('extracted-text').value)">📋 Copy Text</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading"><div class="spinner"></div> Summarizing with AI…</div>
+
+    <!-- AI Summary -->
+    <div class="output-area" id="output">
+      <h4>🤖 AI Summary</h4>
+      <div id="summary-content" class="md-output"></div>
+      <div class="btn-group">
+        <button class="btn-outline" onclick="copySummary()">📋 Copy Summary</button>
+        <button class="btn-secondary" onclick="downloadSummary()">⬇ Download .txt</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let summaryText = '';
+
+    function handleImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Show preview
+      const preview = document.getElementById('preview-img');
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = 'block';
+
+      // Reset
+      document.getElementById('output').classList.remove('active');
+      document.getElementById('extracted-card').style.display = 'none';
+      document.getElementById('ocr-card').style.display = 'block';
+
+      // Run OCR
+      runOCR(file);
+    }
+
+    async function runOCR(file) {
+      const statusEl   = document.getElementById('ocr-status');
+      const progressEl = document.getElementById('ocr-progress');
+      const pctEl      = document.getElementById('ocr-pct');
+
+      try {
+        const result = await Tesseract.recognize(file, 'eng', {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              const pct = Math.round(m.progress * 100);
+              progressEl.value = pct;
+              pctEl.textContent = pct + '%';
+              statusEl.textContent = 'Recognizing text…';
+            } else {
+              statusEl.textContent = m.status;
+            }
+          }
+        });
+
+        progressEl.value = 100;
+        pctEl.textContent = '100%';
+        statusEl.textContent = '✅ Done!';
+
+        const text = result.data.text.trim();
+        document.getElementById('extracted-text').value = text;
+        document.getElementById('extracted-card').style.display = 'block';
+        showToast('Text extracted! Review and summarize.', 'success');
+      } catch (e) {
+        statusEl.textContent = '⚠️ OCR failed: ' + e.message;
+        showToast('OCR error: ' + e.message, 'error');
+      }
+    }
+
+    async function summarizeText() {
+      const text = document.getElementById('extracted-text').value.trim();
+      if (!text || text.length < 20) {
+        showToast('Not enough text to summarize. Try a clearer image.', 'error'); return;
+      }
+
+      const prompt = `
+Summarize the following notes into key points using Markdown.
+Use ## headings for main topics, bullet points for details, and **bold** for important terms.
+Keep it concise and useful for revision.
+
+Notes:
+${text}
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('output').classList.remove('active');
+
+      try {
+        summaryText = await callGemini(prompt, { temperature: 0.4 });
+        document.getElementById('summary-content').innerHTML = marked.parse(summaryText);
+        document.getElementById('output').classList.add('active');
+        document.getElementById('output').scrollIntoView({ behavior: 'smooth' });
+        showToast('Summary ready!', 'success');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function copySummary()     { copyText(summaryText); }
+    function downloadSummary() { downloadText(summaryText, 'notes-summary.txt'); }
+  </script>
+</body>
+</html>

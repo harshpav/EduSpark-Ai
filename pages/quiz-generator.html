@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Quiz Generator · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">❓ AI Quiz / MCQ Generator</h1>
+    <p class="page-subtitle">Enter a topic or paste notes — get an interactive quiz with instant scoring.</p>
+
+    <div class="card" id="input-card">
+      <h4>Quiz Setup</h4>
+      <div class="form-group">
+        <label>Topic or Notes</label>
+        <textarea id="quiz-topic" rows="4"
+          placeholder="Enter a topic like 'Photosynthesis' or paste study notes here…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Number of Questions</label>
+          <select id="q-count">
+            <option value="5">5 questions</option>
+            <option value="8" selected>8 questions</option>
+            <option value="10">10 questions</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Difficulty</label>
+          <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="generateQuiz()">✨ Generate Quiz</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading"><div class="spinner"></div> Generating quiz questions…</div>
+
+    <!-- Quiz Area -->
+    <div id="quiz-area" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 style="color:var(--primary)">📋 Quiz</h3>
+        <span id="score-live" style="font-size:.9rem;color:var(--text-muted)">Score: 0 / 0</span>
+      </div>
+      <div id="questions-list"></div>
+
+      <div id="quiz-summary" class="score-banner" style="display:none">
+        <div id="summary-text"></div>
+        <div class="btn-group" style="justify-content:center;margin-top:1rem">
+          <button class="btn-outline" onclick="resetQuiz()">🔄 Try Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let questions = [];
+    let answered  = 0;
+    let correct   = 0;
+
+    async function generateQuiz() {
+      const topic      = document.getElementById('quiz-topic').value.trim();
+      const count      = document.getElementById('q-count').value;
+      const difficulty = document.getElementById('difficulty').value;
+
+      if (!topic) { showToast('Please enter a topic or notes.', 'error'); return; }
+
+      const prompt = `
+Generate exactly ${count} multiple-choice questions on: "${topic}".
+Difficulty: ${difficulty}.
+Return ONLY a valid JSON array (no markdown fences). Each object:
+{
+  "question": "question text",
+  "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
+  "answer": "A. option1"
+}
+The "answer" must exactly match one of the options strings.
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('quiz-area').style.display = 'none';
+      document.getElementById('quiz-summary').style.display = 'none';
+
+      try {
+        const raw = await callGemini(prompt, { temperature: 0.7 });
+        questions = parseGeminiJson(raw);
+        answered = correct = 0;
+        renderQuiz();
+        document.getElementById('quiz-area').style.display = 'block';
+        document.getElementById('input-card').style.display = 'none';
+        showToast('Quiz ready! Good luck 🎯', 'success');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function renderQuiz() {
+      const list = document.getElementById('questions-list');
+      list.innerHTML = '';
+      updateScore();
+
+      questions.forEach((q, qi) => {
+        const div = document.createElement('div');
+        div.className = 'quiz-question card';
+        div.id = `q-${qi}`;
+
+        const p = document.createElement('p');
+        p.textContent = `${qi + 1}. ${q.question}`;
+        div.appendChild(p);
+
+        const opts = document.createElement('div');
+        opts.className = 'quiz-options';
+        q.options.forEach(opt => {
+          const btn = document.createElement('button');
+          btn.className = 'quiz-option';
+          btn.textContent = opt;
+          btn.onclick = () => selectAnswer(qi, opt, btn, opts);
+          opts.appendChild(btn);
+        });
+        div.appendChild(opts);
+        list.appendChild(div);
+      });
+    }
+
+    function selectAnswer(qi, chosen, btn, opts) {
+      const q = questions[qi];
+      const allBtns = opts.querySelectorAll('.quiz-option');
+      allBtns.forEach(b => {
+        b.disabled = true;
+        if (b.textContent === q.answer) b.classList.add('correct');
+      });
+      if (chosen === q.answer) {
+        btn.classList.add('correct');
+        correct++;
+      } else {
+        btn.classList.add('wrong');
+      }
+      answered++;
+      updateScore();
+      if (answered === questions.length) showSummary();
+    }
+
+    function updateScore() {
+      document.getElementById('score-live').textContent =
+        `Score: ${correct} / ${answered} answered`;
+    }
+
+    function showSummary() {
+      const pct = Math.round((correct / questions.length) * 100);
+      const msg = pct >= 80 ? '🎉 Excellent!' : pct >= 50 ? '👍 Good effort!' : '📚 Keep studying!';
+      document.getElementById('summary-text').innerHTML =
+        `${msg}<br/><span style="font-size:1rem;color:var(--text-muted)">${correct} / ${questions.length} correct (${pct}%)</span>`;
+      document.getElementById('quiz-summary').style.display = 'block';
+      document.getElementById('quiz-summary').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function resetQuiz() {
+      document.getElementById('quiz-area').style.display = 'none';
+      document.getElementById('input-card').style.display = 'block';
+      document.getElementById('quiz-topic').value = '';
+    }
+  </script>
+</body>
+</html>

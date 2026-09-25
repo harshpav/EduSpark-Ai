@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EduSpark AI — Your AI-Powered Study Toolkit</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Your key is stored <strong>only in memory</strong> for this session. It is never saved to disk or sent anywhere except Google's Gemini API.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off" />
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button>
+      </div>
+      <p class="modal-note">Don't have a key? <a href="https://aistudio.google.com/app/apikey" target="_blank">Get one free from Google AI Studio →</a></p>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">⚡ EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="index.html" class="active">Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change API Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">✦ Powered by Google Gemini</div>
+    <h1>⚡ EduSpark AI</h1>
+    <p class="hero-tagline">10 AI-powered tools to supercharge how you study, revise, and create.</p>
+    <p class="hero-sub">Resume → Notes → PPT → Quiz → Chatbot → Flashcards → and more. All in one place.</p>
+  </section>
+
+  <!-- Tools Grid -->
+  <main class="tools-grid">
+    <a href="pages/resume-builder.html" class="tool-card">
+      <div class="tool-icon">📄</div>
+      <h3>AI Resume Builder</h3>
+      <p>Fill your details and get a polished AI-generated resume instantly.</p>
+      <span class="task-badge">Task 1</span>
+    </a>
+    <a href="pages/notes-generator.html" class="tool-card">
+      <div class="tool-icon">📝</div>
+      <h3>AI Notes Generator</h3>
+      <p>Paste any topic or paragraph and get clean structured study notes.</p>
+      <span class="task-badge">Task 2</span>
+    </a>
+    <a href="pages/ppt-generator.html" class="tool-card">
+      <div class="tool-icon">📊</div>
+      <h3>AI PPT Generator</h3>
+      <p>Enter a topic and get slide-wise content with navigation.</p>
+      <span class="task-badge">Task 3</span>
+    </a>
+    <a href="pages/mind-map.html" class="tool-card">
+      <div class="tool-icon">🧠</div>
+      <h3>AI Mind Map Generator</h3>
+      <p>Paste your syllabus and visualize it as an interactive mind map.</p>
+      <span class="task-badge">Task 4</span>
+    </a>
+    <a href="pages/sheets-backend.html" class="tool-card">
+      <div class="tool-icon">📋</div>
+      <h3>Google Sheets Backend</h3>
+      <p>Use Google Sheets as a live database with AI-powered insights.</p>
+      <span class="task-badge">Task 5</span>
+    </a>
+    <a href="pages/quiz-generator.html" class="tool-card">
+      <div class="tool-icon">❓</div>
+      <h3>AI Quiz / MCQ Generator</h3>
+      <p>Generate interactive multiple-choice quizzes from any topic.</p>
+      <span class="task-badge">Task 6</span>
+    </a>
+    <a href="pages/chatbot.html" class="tool-card">
+      <div class="tool-icon">💬</div>
+      <h3>AI Doubt-Solving Chatbot</h3>
+      <p>Ask subject questions and get simple, example-based explanations.</p>
+      <span class="task-badge">Task 7</span>
+    </a>
+    <a href="pages/flashcards.html" class="tool-card">
+      <div class="tool-icon">🃏</div>
+      <h3>AI Flashcard Generator</h3>
+      <p>Create flippable flashcard decks from any chapter or topic.</p>
+      <span class="task-badge">Task 8</span>
+    </a>
+    <a href="pages/study-planner.html" class="tool-card">
+      <div class="tool-icon">📅</div>
+      <h3>AI Study Planner</h3>
+      <p>Input subjects and exam dates to get a personalized timetable.</p>
+      <span class="task-badge">Task 9</span>
+    </a>
+    <a href="pages/ocr-summarizer.html" class="tool-card">
+      <div class="tool-icon">📷</div>
+      <h3>AI Notes Summarizer (OCR)</h3>
+      <p>Upload a photo of notes and get an AI-generated summary.</p>
+      <span class="task-badge">Task 10</span>
+    </a>
+  </main>
+
+  <footer class="site-footer">
+    <p>⚡ <strong>EduSpark AI</strong> · 10 AI-Powered Student Tools · Powered by Google Gemini · API key stays in your browser memory only</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Notes Generator · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">📝 AI Notes Generator</h1>
+    <p class="page-subtitle">Paste any topic, paragraph, or chapter text — get structured study notes instantly.</p>
+
+    <div class="card">
+      <h4>Input Text / Topic</h4>
+      <div class="form-group">
+        <label>Topic Name or Raw Text</label>
+        <textarea id="input-text" rows="8"
+          placeholder="Paste your textbook paragraph, topic name, or chapter here…&#10;&#10;Example: Photosynthesis is the process by which plants..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Detail Level</label>
+          <select id="detail-level">
+            <option value="concise">Concise (quick revision)</option>
+            <option value="detailed" selected>Detailed (study notes)</option>
+            <option value="comprehensive">Comprehensive (deep study)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Format</label>
+          <select id="format">
+            <option value="bullet" selected>Bullet points</option>
+            <option value="numbered">Numbered list</option>
+            <option value="outline">Hierarchical outline</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="generateNotes()">✨ Generate Notes</button>
+        <button class="btn-secondary" onclick="clearAll()">🗑 Clear</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading">
+      <div class="spinner"></div> Generating structured notes…
+    </div>
+
+    <div class="output-area" id="output">
+      <h4>📝 Your Study Notes</h4>
+      <div id="notes-content" class="md-output"></div>
+      <div class="btn-group">
+        <button class="btn-outline" onclick="copyNotes()">📋 Copy Notes</button>
+        <button class="btn-secondary" onclick="downloadNotes()">⬇ Download .txt</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let rawNotes = '';
+
+    async function generateNotes() {
+      const text   = document.getElementById('input-text').value.trim();
+      const level  = document.getElementById('detail-level').value;
+      const format = document.getElementById('format').value;
+
+      if (!text) { showToast('Please enter some text or a topic.', 'error'); return; }
+
+      const formatMap = {
+        bullet: 'bullet-point notes (use - for bullets)',
+        numbered: 'numbered list notes',
+        outline: 'hierarchical outline with main headings and sub-bullets'
+      };
+      const levelMap = {
+        concise: 'Keep it brief — key points only.',
+        detailed: 'Include definitions, examples, and explanations for each point.',
+        comprehensive: 'Be thorough — cover all aspects, sub-topics, and edge cases.'
+      };
+
+      const prompt = `
+Convert the following text/topic into well-structured study notes.
+Format: ${formatMap[format]}
+Detail level: ${levelMap[level]}
+Use Markdown headings (##) for sections and ${format === 'bullet' ? '- for bullets' : 'numbers for items'}.
+Highlight important terms using **bold**.
+
+Input:
+${text}
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('output').classList.remove('active');
+
+      try {
+        rawNotes = await callGemini(prompt, { temperature: 0.5 });
+        document.getElementById('notes-content').innerHTML = marked.parse(rawNotes);
+        document.getElementById('output').classList.add('active');
+        showToast('Notes generated!', 'success');
+      } catch (e) {
+        showToast(e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function clearAll() {
+      document.getElementById('input-text').value = '';
+      document.getElementById('output').classList.remove('active');
+      rawNotes = '';
+    }
+    function copyNotes()     { copyText(rawNotes); }
+    function downloadNotes() { downloadText(rawNotes, 'study-notes.txt'); }
+  </script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Doubt Chatbot · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container" style="max-width:700px">
+    <h1 class="page-title">💬 AI Doubt-Solving Chatbot</h1>
+    <p class="page-subtitle">Ask anything about any subject. Your AI tutor explains simply with examples.</p>
+
+    <!-- Subject selector -->
+    <div class="card" style="padding:1rem 1.5rem">
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <label style="font-size:.85rem;color:var(--text-muted);font-weight:600">Subject:</label>
+        <select id="subject" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:.4rem .75rem;font-size:.9rem">
+          <option value="General">General</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Physics">Physics</option>
+          <option value="Chemistry">Chemistry</option>
+          <option value="Biology">Biology</option>
+          <option value="Computer Science">Computer Science</option>
+          <option value="History">History</option>
+          <option value="English">English</option>
+        </select>
+        <button class="btn-secondary" style="padding:.4rem .9rem;font-size:.85rem" onclick="clearChat()">🗑 Clear Chat</button>
+      </div>
+    </div>
+
+    <!-- Chat Window -->
+    <div class="chat-window" id="chat-window">
+      <div class="chat-bubble ai">
+        👋 Hi! I'm your AI tutor. Ask me any doubt — I'll explain with examples. Select your subject above for better answers!
+      </div>
+    </div>
+
+    <!-- Input Row -->
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Type your doubt and press Enter…" onkeydown="if(event.key==='Enter')sendMessage()"/>
+      <button class="btn-primary" onclick="sendMessage()">Send ↗</button>
+    </div>
+
+    <!-- Quick Questions -->
+    <div style="margin-top:.75rem">
+      <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.4rem">Quick examples:</p>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+        <button class="btn-secondary" style="font-size:.78rem;padding:.3rem .7rem"
+          onclick="askQuick('What is Newton\'s second law?')">Newton's 2nd law</button>
+        <button class="btn-secondary" style="font-size:.78rem;padding:.3rem .7rem"
+          onclick="askQuick('Explain photosynthesis simply')">Photosynthesis</button>
+        <button class="btn-secondary" style="font-size:.78rem;padding:.3rem .7rem"
+          onclick="askQuick('What is recursion in programming?')">Recursion</button>
+        <button class="btn-secondary" style="font-size:.78rem;padding:.3rem .7rem"
+          onclick="askQuick('Difference between RAM and ROM')">RAM vs ROM</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    // Conversation history for context
+    let history = [];
+
+    function appendBubble(role, text) {
+      const window = document.getElementById('chat-window');
+      const div    = document.createElement('div');
+      div.className = `chat-bubble ${role}`;
+      div.textContent = text;
+      window.appendChild(div);
+      window.scrollTop = window.scrollHeight;
+      return div;
+    }
+
+    async function sendMessage() {
+      const input   = document.getElementById('chat-input');
+      const subject = document.getElementById('subject').value;
+      const msg     = input.value.trim();
+      if (!msg) return;
+
+      input.value = '';
+      appendBubble('user', msg);
+      history.push({ role: 'user', text: msg });
+
+      const thinkingBubble = appendBubble('ai', '⏳ Thinking…');
+
+      // Build prompt with conversation context
+      const contextLines = history.slice(-6).map(h =>
+        `${h.role === 'user' ? 'Student' : 'Tutor'}: ${h.text}`
+      ).join('\n');
+
+      const prompt = `
+You are a friendly, helpful tutor for ${subject}. Explain clearly and simply with a real-world example when useful. Keep answers concise (3-5 sentences max unless formula/code is needed).
+
+Conversation so far:
+${contextLines}
+
+Now answer the student's latest question.
+      `.trim();
+
+      try {
+        const reply = await callGemini(prompt, { temperature: 0.6, maxTokens: 500 });
+        thinkingBubble.textContent = reply;
+        history.push({ role: 'ai', text: reply });
+      } catch (e) {
+        thinkingBubble.textContent = '⚠️ Error: ' + e.message;
+      }
+    }
+
+    function askQuick(q) {
+      document.getElementById('chat-input').value = q;
+      sendMessage();
+    }
+
+    function clearChat() {
+      history = [];
+      const win = document.getElementById('chat-window');
+      win.innerHTML = '<div class="chat-bubble ai">Chat cleared! Ask a new doubt 😊</div>';
+    }
+  </script>
+</body>
+</html>

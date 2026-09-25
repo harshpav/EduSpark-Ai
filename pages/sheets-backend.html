@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Google Sheets Backend · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">📋 Google Sheets Backend</h1>
+    <p class="page-subtitle">Connect your Google Sheet as a live database, view and add data, then get AI insights.</p>
+
+    <!-- Step 1: Connect Sheet -->
+    <div class="card">
+      <h4>Step 1 — Connect Your Google Sheet</h4>
+      <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:1rem;">
+        Publish your Apps Script as a web app, paste the URL below. 
+        <a href="https://developers.google.com/apps-script/guides/web" target="_blank" style="color:var(--accent)">How to deploy →</a>
+      </p>
+      <div class="form-group">
+        <label>Apps Script Web App URL</label>
+        <input type="url" id="sheet-url" placeholder="https://script.google.com/macros/s/.../exec"/>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="fetchSheetData()">📥 Fetch Data</button>
+        <button class="btn-secondary" onclick="loadDemo()">🎭 Load Demo Data</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading"><div class="spinner"></div> Fetching sheet data…</div>
+
+    <!-- Data Table -->
+    <div class="output-area" id="table-area">
+      <h4>📊 Sheet Data</h4>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="data-table"></table>
+      </div>
+      <div class="btn-group">
+        <button class="btn-outline" onclick="toggleAddForm()">➕ Add New Row</button>
+        <button class="btn-primary" onclick="getAiInsight()">🤖 AI Insight</button>
+      </div>
+    </div>
+
+    <!-- Add Row Form -->
+    <div class="card" id="add-form" style="display:none">
+      <h4>Add New Row</h4>
+      <div id="add-fields"></div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="submitRow()">💾 Submit Row</button>
+        <button class="btn-secondary" onclick="toggleAddForm()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- AI Insight -->
+    <div class="insight-box" id="insight-box">
+      <strong style="color:var(--accent)">🤖 AI Insight</strong>
+      <div class="loading-bar" id="insight-loading" style="margin:.5rem 0">
+        <div class="spinner"></div> Analyzing data…
+      </div>
+      <p id="insight-text" style="margin-top:.5rem;font-size:.9rem;line-height:1.6"></p>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let tableData = [];
+    let headers   = [];
+
+    // Demo data if no Apps Script URL
+    function loadDemo() {
+      headers   = ['Name', 'Subject', 'Score', 'Grade'];
+      tableData = [
+        { Name:'Harsh', Subject:'Math', Score:'92', Grade:'A' },
+        { Name:'Riya',  Subject:'Science', Score:'85', Grade:'B' },
+        { Name:'Arjun', Subject:'English', Score:'78', Grade:'C' },
+        { Name:'Priya', Subject:'Math', Score:'96', Grade:'A' },
+        { Name:'Dev',   Subject:'Science', Score:'88', Grade:'B' },
+      ];
+      renderTable();
+      document.getElementById('table-area').classList.add('active');
+      showToast('Demo data loaded!', 'success');
+    }
+
+    async function fetchSheetData() {
+      const url = document.getElementById('sheet-url').value.trim();
+      if (!url) { showToast('Please enter your Apps Script URL or use Demo Data.', 'error'); return; }
+      setLoading('loading', true);
+      try {
+        const res  = await fetch(url);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          headers   = Object.keys(data[0]);
+          tableData = data;
+          renderTable();
+          document.getElementById('table-area').classList.add('active');
+          showToast('Data loaded from Google Sheet!', 'success');
+        } else {
+          showToast('No data found or invalid response.', 'error');
+        }
+      } catch (e) {
+        showToast('Failed to fetch. Check URL or use Demo Data.', 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function renderTable() {
+      const table = document.getElementById('data-table');
+      table.innerHTML = '';
+      const thead = document.createElement('thead');
+      const hr    = document.createElement('tr');
+      headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; hr.appendChild(th); });
+      thead.appendChild(hr); table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      tableData.forEach(row => {
+        const tr = document.createElement('tr');
+        headers.forEach(h => { const td = document.createElement('td'); td.textContent = row[h] || ''; tr.appendChild(td); });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+    }
+
+    function toggleAddForm() {
+      const form = document.getElementById('add-form');
+      const visible = form.style.display !== 'none';
+      form.style.display = visible ? 'none' : 'block';
+      if (!visible) {
+        const fields = document.getElementById('add-fields');
+        fields.innerHTML = '';
+        headers.forEach(h => {
+          const div = document.createElement('div'); div.className = 'form-group';
+          div.innerHTML = `<label>${h}</label><input type="text" id="field-${h}" placeholder="${h}"/>`;
+          fields.appendChild(div);
+        });
+      }
+    }
+
+    async function submitRow() {
+      const newRow = {};
+      headers.forEach(h => { newRow[h] = document.getElementById(`field-${h}`)?.value || ''; });
+      tableData.push(newRow);
+      renderTable();
+      document.getElementById('add-form').style.display = 'none';
+
+      // Try to POST to Apps Script if URL is set
+      const url = document.getElementById('sheet-url').value.trim();
+      if (url) {
+        try {
+          await fetch(url, { method: 'POST', body: JSON.stringify(newRow),
+            headers: { 'Content-Type': 'application/json' } });
+          showToast('Row added to Google Sheet!', 'success');
+        } catch { showToast('Row added locally (could not reach Sheet).', 'success'); }
+      } else {
+        showToast('Row added to demo table!', 'success');
+      }
+    }
+
+    async function getAiInsight() {
+      if (!tableData.length) { showToast('Load data first.', 'error'); return; }
+      const insightBox = document.getElementById('insight-box');
+      insightBox.classList.add('active');
+      setLoading('insight-loading', true);
+      document.getElementById('insight-text').textContent = '';
+
+      const dataStr = JSON.stringify(tableData.slice(0, 20));
+      const prompt  = `You are a data analyst. Here is some tabular data from a Google Sheet:\n${dataStr}\n\nProvide a short 3-4 sentence insight: summarize key trends, highlight top performers or anomalies, and suggest one actionable recommendation.`;
+
+      try {
+        const text = await callGemini(prompt, { temperature: 0.5, maxTokens: 300 });
+        document.getElementById('insight-text').textContent = text;
+        showToast('AI insight ready!', 'success');
+      } catch (e) {
+        document.getElementById('insight-text').textContent = 'Error: ' + e.message;
+      } finally {
+        setLoading('insight-loading', false);
+      }
+    }
+  </script>
+</body>
+</html>

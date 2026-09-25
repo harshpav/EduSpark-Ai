@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Flashcards · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">🃏 AI Flashcard Generator</h1>
+    <p class="page-subtitle">Paste a topic or chapter — get flippable flashcards for quick revision.</p>
+
+    <div class="card" id="input-card">
+      <h4>Generate Flashcards</h4>
+      <div class="form-group">
+        <label>Topic or Study Text</label>
+        <textarea id="flash-input" rows="5"
+          placeholder="Enter a topic like 'Organic Chemistry reactions' or paste your notes here…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Number of Cards</label>
+          <select id="card-count">
+            <option value="5">5 cards</option>
+            <option value="8" selected>8 cards</option>
+            <option value="10">10 cards</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="generateFlashcards()">✨ Generate Flashcards</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading"><div class="spinner"></div> Creating flashcards…</div>
+
+    <!-- Flashcard Deck -->
+    <div id="deck-area" style="display:none">
+      <div class="fc-counter" id="fc-counter">Card 1 of 8</div>
+
+      <div class="flashcard-deck">
+        <div class="flashcard" id="flashcard" onclick="flipCard()">
+          <div class="fc-face fc-front">
+            <div>
+              <p id="fc-question">Question text</p>
+              <p class="fc-hint">👆 Click to flip</p>
+            </div>
+          </div>
+          <div class="fc-face fc-back">
+            <div>
+              <p id="fc-answer">Answer text</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flashcard-controls">
+        <button class="btn-secondary" onclick="prevCard()">← Prev</button>
+        <button class="btn-primary"   onclick="nextCard()">Next →</button>
+        <button class="btn-outline"   onclick="shuffleDeck()">🔀 Shuffle</button>
+        <button class="btn-secondary" onclick="resetDeck()">🔄 New Topic</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let cards   = [];
+    let current = 0;
+
+    async function generateFlashcards() {
+      const text  = document.getElementById('flash-input').value.trim();
+      const count = document.getElementById('card-count').value;
+      if (!text) { showToast('Please enter a topic or notes.', 'error'); return; }
+
+      const prompt = `
+Generate exactly ${count} flashcards for: "${text}".
+Return ONLY a valid JSON array (no markdown fences). Each object:
+{"question": "question text", "answer": "answer text"}
+Keep questions concise and answers to 1-2 sentences.
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('deck-area').style.display = 'none';
+
+      try {
+        const raw = await callGemini(prompt, { temperature: 0.6 });
+        cards   = parseGeminiJson(raw);
+        current = 0;
+        showCard();
+        document.getElementById('input-card').style.display = 'none';
+        document.getElementById('deck-area').style.display = 'block';
+        showToast(`${cards.length} flashcards ready!`, 'success');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function showCard() {
+      const card = document.getElementById('flashcard');
+      card.classList.remove('flipped');
+      document.getElementById('fc-question').textContent = cards[current].question;
+      document.getElementById('fc-answer').textContent   = cards[current].answer;
+      document.getElementById('fc-counter').textContent  = `Card ${current + 1} of ${cards.length}`;
+    }
+
+    function flipCard()  { document.getElementById('flashcard').classList.toggle('flipped'); }
+    function nextCard()  { if (current < cards.length-1) { current++; showCard(); } }
+    function prevCard()  { if (current > 0)              { current--; showCard(); } }
+
+    function shuffleDeck() {
+      cards.sort(() => Math.random() - 0.5);
+      current = 0;
+      showCard();
+      showToast('Deck shuffled!', 'success');
+    }
+
+    function resetDeck() {
+      document.getElementById('deck-area').style.display = 'none';
+      document.getElementById('input-card').style.display = 'block';
+      document.getElementById('flash-input').value = '';
+    }
+  </script>
+</body>
+</html>

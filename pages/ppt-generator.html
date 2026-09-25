@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI PPT Generator · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">📊 AI PPT Generator</h1>
+    <p class="page-subtitle">Enter a topic and get a full slide deck — navigate through slides right here.</p>
+
+    <div class="card">
+      <h4>Presentation Details</h4>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Topic</label>
+          <input type="text" id="topic" placeholder="Machine Learning in Healthcare"/>
+        </div>
+        <div class="form-group">
+          <label>Number of Slides</label>
+          <select id="slide-count">
+            <option value="5">5 slides</option>
+            <option value="7" selected>7 slides</option>
+            <option value="10">10 slides</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Audience / Context (optional)</label>
+        <input type="text" id="audience" placeholder="College students, introductory level"/>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="generatePPT()">✨ Generate Slides</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading">
+      <div class="spinner"></div> Generating slide content with AI…
+    </div>
+
+    <!-- Slide Viewer -->
+    <div class="slide-viewer" id="slide-viewer">
+      <div class="slide-header">
+        <span id="slide-label">Slide 1 of 7</span>
+        <span id="slide-topic-label"></span>
+      </div>
+      <div class="slide-content" id="slide-display">
+        <h2 id="slide-title"></h2>
+        <ul id="slide-bullets"></ul>
+      </div>
+      <div class="slide-nav">
+        <button class="btn-secondary" onclick="prevSlide()">← Prev</button>
+        <button class="btn-secondary" onclick="nextSlide()">Next →</button>
+        <button class="btn-outline"   onclick="downloadSlides()">⬇ Download .txt</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let slides = [];
+    let current = 0;
+
+    async function generatePPT() {
+      const topic    = document.getElementById('topic').value.trim();
+      const count    = document.getElementById('slide-count').value;
+      const audience = document.getElementById('audience').value.trim();
+
+      if (!topic) { showToast('Please enter a topic.', 'error'); return; }
+
+      const prompt = `
+Create a ${count}-slide presentation on the topic: "${topic}".
+${audience ? `Audience: ${audience}.` : ''}
+
+Return ONLY a valid JSON array with no extra text, no markdown fences. Each object must have:
+- "title": slide title (string)
+- "bullets": array of 3-4 concise bullet point strings
+
+Example format:
+[{"title":"Introduction","bullets":["Point 1","Point 2","Point 3"]},...]
+
+Generate exactly ${count} slides now.
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('slide-viewer').classList.remove('active');
+
+      try {
+        const raw = await callGemini(prompt, { temperature: 0.6 });
+        slides = parseGeminiJson(raw);
+        if (!Array.isArray(slides) || slides.length === 0) throw new Error('Invalid slide data received.');
+        current = 0;
+        document.getElementById('slide-topic-label').textContent = topic;
+        renderSlide();
+        document.getElementById('slide-viewer').classList.add('active');
+        showToast('Slides generated!', 'success');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function renderSlide() {
+      const s = slides[current];
+      document.getElementById('slide-label').textContent = `Slide ${current + 1} of ${slides.length}`;
+      document.getElementById('slide-title').textContent = s.title;
+      const ul = document.getElementById('slide-bullets');
+      ul.innerHTML = '';
+      (s.bullets || []).forEach(b => {
+        const li = document.createElement('li');
+        li.textContent = b;
+        ul.appendChild(li);
+      });
+    }
+
+    function prevSlide() {
+      if (current > 0) { current--; renderSlide(); }
+    }
+    function nextSlide() {
+      if (current < slides.length - 1) { current++; renderSlide(); }
+    }
+
+    function downloadSlides() {
+      let txt = '';
+      slides.forEach((s, i) => {
+        txt += `SLIDE ${i + 1}: ${s.title}\n`;
+        (s.bullets || []).forEach(b => txt += `  • ${b}\n`);
+        txt += '\n';
+      });
+      downloadText(txt, 'presentation.txt');
+    }
+  </script>
+</body>
+</html>

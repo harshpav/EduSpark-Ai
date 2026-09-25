@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Resume Builder · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <!-- API Key Modal (shared) -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">📄 AI Resume Builder</h1>
+    <p class="page-subtitle">Fill in your details and let AI craft a professional resume for you.</p>
+
+    <div class="card">
+      <h4>Your Information</h4>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="name" placeholder="Harsh Sharma"/>
+        </div>
+        <div class="form-group">
+          <label>Contact (Phone / Email)</label>
+          <input type="text" id="contact" placeholder="+91 9876543210 | harsh@email.com"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Objective / Summary</label>
+        <textarea id="objective" rows="2" placeholder="A motivated CSE student seeking..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Education</label>
+          <textarea id="education" rows="3" placeholder="B.Tech CSE, ABC University, 2022–2026, CGPA 8.5&#10;12th – XYZ School, 2022, 92%"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Skills</label>
+          <textarea id="skills" rows="3" placeholder="Python, JavaScript, React, SQL, Git, Machine Learning"></textarea>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Work Experience / Projects</label>
+        <textarea id="experience" rows="4" placeholder="Internship at ABC Corp (June 2025) – Built REST APIs in Node.js&#10;Project: AI Chatbot using Gemini API"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Certifications / Achievements (optional)</label>
+        <textarea id="achievements" rows="2" placeholder="Google Cloud Certified, Winner – Hackathon 2025"></textarea>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn-primary" onclick="buildResume()">✨ Generate Resume</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading">
+      <div class="spinner"></div> Generating your resume with AI…
+    </div>
+
+    <div class="output-area" id="output">
+      <h4>📄 Your AI-Generated Resume</h4>
+      <div id="resume-content" class="resume-preview"></div>
+      <div class="btn-group" style="margin-top:1.5rem">
+        <button class="btn-outline" onclick="copyResume()">📋 Copy Text</button>
+        <button class="btn-primary" onclick="downloadPDF()">⬇ Download PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let resumeText = '';
+
+    async function buildResume() {
+      const name        = document.getElementById('name').value.trim();
+      const contact     = document.getElementById('contact').value.trim();
+      const objective   = document.getElementById('objective').value.trim();
+      const education   = document.getElementById('education').value.trim();
+      const skills      = document.getElementById('skills').value.trim();
+      const experience  = document.getElementById('experience').value.trim();
+      const achievements= document.getElementById('achievements').value.trim();
+
+      if (!name || !education || !skills) {
+        showToast('Please fill Name, Education, and Skills at minimum.', 'error');
+        return;
+      }
+
+      const prompt = `
+You are a professional resume writer. Create a clean, ATS-friendly resume based on the following details.
+Format it with clear sections using plain text (no markdown symbols like ** or ##).
+Use these sections: OBJECTIVE, EDUCATION, SKILLS, EXPERIENCE / PROJECTS, ACHIEVEMENTS (if provided).
+
+Name: ${name}
+Contact: ${contact}
+Objective: ${objective}
+Education: ${education}
+Skills: ${skills}
+Experience / Projects: ${experience}
+Certifications / Achievements: ${achievements}
+
+Write the resume now, starting directly with the person's name at the top.
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('output').classList.remove('active');
+
+      try {
+        resumeText = await callGemini(prompt, { temperature: 0.4 });
+        document.getElementById('resume-content').innerText = resumeText;
+        document.getElementById('output').classList.add('active');
+        showToast('Resume generated!', 'success');
+      } catch (e) {
+        showToast(e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function copyResume() {
+      copyText(resumeText);
+    }
+
+    function downloadPDF() {
+      if (!resumeText) return;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const lines = doc.splitTextToSize(resumeText, 500);
+      doc.setFont('Helvetica');
+      doc.setFontSize(11);
+      doc.text(lines, 50, 60);
+      doc.save('resume.pdf');
+      showToast('PDF downloaded!', 'success');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Study Planner · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+  <style>
+    .subject-tag {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .3rem .7rem; border-radius: 20px;
+      font-size: .8rem; font-weight: 600;
+      cursor: pointer; transition: opacity .2s;
+    }
+    .subject-tag:hover { opacity: .8; }
+    .tag-remove { font-size: .9rem; line-height: 1; }
+    .tags-wrap { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+    .tt-cell { border-radius: 4px; padding: .4rem; font-weight: 600; font-size: .82rem; }
+  </style>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">📅 AI Study Planner</h1>
+    <p class="page-subtitle">Enter your subjects and available hours — get a smart day-wise timetable.</p>
+
+    <div class="card">
+      <h4>Your Study Details</h4>
+
+      <!-- Add subjects -->
+      <div class="form-group">
+        <label>Add Subjects</label>
+        <div style="display:flex;gap:.5rem">
+          <input type="text" id="subject-input" placeholder="e.g. Mathematics" onkeydown="if(event.key==='Enter')addSubject()"/>
+          <button class="btn-outline" style="white-space:nowrap" onclick="addSubject()">+ Add</button>
+        </div>
+      </div>
+      <div class="tags-wrap" id="subjects-tags"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Study Hours Per Day</label>
+          <select id="hours-per-day">
+            <option value="2">2 hours</option>
+            <option value="3" selected>3 hours</option>
+            <option value="4">4 hours</option>
+            <option value="5">5 hours</option>
+            <option value="6">6 hours</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Plan Duration</label>
+          <select id="days">
+            <option value="7" selected>1 week (7 days)</option>
+            <option value="14">2 weeks (14 days)</option>
+            <option value="30">1 month (30 days)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Exam / Target Date (optional)</label>
+        <input type="date" id="exam-date"/>
+      </div>
+
+      <div class="form-group">
+        <label>Priority subjects (optional)</label>
+        <input type="text" id="priority" placeholder="e.g. Physics and Math need more focus"/>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn-primary" onclick="generatePlan()">📅 Generate Timetable</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading"><div class="spinner"></div> Building your study plan…</div>
+
+    <div class="output-area" id="output">
+      <h4>📅 Your Weekly Study Timetable</h4>
+      <div style="overflow-x:auto">
+        <table class="timetable" id="timetable"></table>
+      </div>
+      <div class="btn-group">
+        <button class="btn-outline" onclick="downloadPlan()">⬇ Download Plan</button>
+        <button class="btn-secondary" onclick="regeneratePlan()">🔄 Regenerate</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    let subjects   = [];
+    let planData   = null;
+    const colors   = ['#6c63ff','#00d2b4','#f59e0b','#ef4444','#22c55e','#a78bfa','#fb923c','#60a5fa'];
+
+    function addSubject() {
+      const input = document.getElementById('subject-input');
+      const val   = input.value.trim();
+      if (!val) return;
+      if (subjects.includes(val)) { showToast('Already added.', 'error'); return; }
+      subjects.push(val);
+      renderTags();
+      input.value = '';
+    }
+
+    function removeSubject(s) {
+      subjects = subjects.filter(x => x !== s);
+      renderTags();
+    }
+
+    function renderTags() {
+      const wrap = document.getElementById('subjects-tags');
+      wrap.innerHTML = '';
+      subjects.forEach((s, i) => {
+        const tag = document.createElement('div');
+        tag.className = 'subject-tag';
+        tag.style.background = colors[i % colors.length] + '33';
+        tag.style.color = colors[i % colors.length];
+        tag.style.border = `1px solid ${colors[i % colors.length]}55`;
+        tag.innerHTML = `${s} <span class="tag-remove" onclick="removeSubject('${s}')">×</span>`;
+        wrap.appendChild(tag);
+      });
+    }
+
+    async function generatePlan() {
+      if (subjects.length < 2) { showToast('Please add at least 2 subjects.', 'error'); return; }
+
+      const hours    = document.getElementById('hours-per-day').value;
+      const days     = document.getElementById('days').value;
+      const examDate = document.getElementById('exam-date').value;
+      const priority = document.getElementById('priority').value.trim();
+
+      const prompt = `
+Create a ${days}-day study timetable for a student.
+Subjects: ${subjects.join(', ')}
+Study hours per day: ${hours}
+${examDate ? `Exam date: ${examDate}` : ''}
+${priority ? `Priority note: ${priority}` : ''}
+
+Return ONLY valid JSON (no markdown fences). Structure:
+{
+  "days": [
+    {
+      "day": "Day 1 (Mon)",
+      "slots": [
+        {"time": "9:00 AM - 10:00 AM", "subject": "Mathematics"},
+        {"time": "10:30 AM - 11:30 AM", "subject": "Physics"}
+      ]
+    }
+  ]
+}
+Ensure subjects rotate fairly and ${priority ? 'give more slots to priority subjects' : 'are balanced'}.
+Generate all ${days} days.
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('output').classList.remove('active');
+
+      try {
+        const raw = await callGemini(prompt, { temperature: 0.5, maxTokens: 4000 });
+        planData  = parseGeminiJson(raw);
+        renderTimetable(planData);
+        document.getElementById('output').classList.add('active');
+        showToast('Timetable generated!', 'success');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function getSubjectColor(subject) {
+      const idx = subjects.indexOf(subject);
+      return idx >= 0 ? colors[idx % colors.length] : '#888';
+    }
+
+    function renderTimetable(data) {
+      const table = document.getElementById('timetable');
+      table.innerHTML = '';
+
+      // Get all unique time slots
+      const allSlots = [...new Set(data.days.flatMap(d => d.slots.map(s => s.time)))];
+
+      // Header row
+      const thead = document.createElement('thead');
+      const hr    = document.createElement('tr');
+      const thTime = document.createElement('th');
+      thTime.textContent = 'Time Slot';
+      hr.appendChild(thTime);
+      data.days.forEach(d => {
+        const th = document.createElement('th');
+        th.textContent = d.day;
+        hr.appendChild(th);
+      });
+      thead.appendChild(hr);
+      table.appendChild(thead);
+
+      // Body rows
+      const tbody = document.createElement('tbody');
+      allSlots.forEach(slot => {
+        const tr = document.createElement('tr');
+        const tdTime = document.createElement('td');
+        tdTime.textContent = slot;
+        tdTime.style.color = 'var(--text-muted)';
+        tdTime.style.fontSize = '.8rem';
+        tr.appendChild(tdTime);
+
+        data.days.forEach(d => {
+          const td      = document.createElement('td');
+          const found   = d.slots.find(s => s.time === slot);
+          if (found) {
+            td.className = 'has-subject tt-cell';
+            td.textContent = found.subject;
+            const c = getSubjectColor(found.subject);
+            td.style.background = c + '22';
+            td.style.color = c;
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+    }
+
+    function downloadPlan() {
+      if (!planData) return;
+      let txt = 'STUDY TIMETABLE\n' + '='.repeat(40) + '\n\n';
+      planData.days.forEach(d => {
+        txt += `${d.day}\n${'─'.repeat(20)}\n`;
+        d.slots.forEach(s => { txt += `  ${s.time}: ${s.subject}\n`; });
+        txt += '\n';
+      });
+      downloadText(txt, 'study-timetable.txt');
+    }
+
+    function regeneratePlan() { generatePlan(); }
+  </script>
+</body>
+</html>

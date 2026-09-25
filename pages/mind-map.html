@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Mind Map Generator · EduSpark AI</title>
+  <link rel="stylesheet" href="../styles.css"/>
+  <style>
+    .mindmap-wrap { overflow: auto; }
+    .mm-node {
+      display: inline-block;
+      background: var(--surface2);
+      border: 2px solid var(--primary);
+      border-radius: 8px; padding: .4rem .9rem;
+      font-size: .85rem; cursor: pointer;
+      transition: all .2s; position: relative;
+    }
+    .mm-node:hover { background: rgba(108,99,255,.2); }
+    .mm-root { background: rgba(108,99,255,.3); font-weight: 700; font-size: 1rem; border-color: var(--accent); }
+    .mm-branch { border-color: var(--success); margin: .25rem 0; }
+    .mm-leaf   { border-color: #f59e0b; font-size: .8rem; }
+    .mm-section { margin: .75rem 0 .75rem 1.5rem; }
+    .mm-children { margin-left: 2rem; border-left: 2px solid var(--border); padding-left: 1rem; }
+    .mm-item { margin: .4rem 0; display: flex; align-items: flex-start; gap: .4rem; flex-wrap: wrap; }
+    .mm-connector { color: var(--text-muted); font-size: .75rem; margin-top: .5rem; }
+    .detail-popup {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .detail-popup.active { display: flex; }
+    .detail-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 2rem; max-width: 500px; width: 90%;
+      box-shadow: var(--shadow);
+    }
+    .detail-box h3 { color: var(--primary); margin-bottom: 1rem; }
+    .detail-box p  { color: var(--text-muted); font-size: .9rem; }
+    .detail-close { float: right; cursor: pointer; font-size: 1.2rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <!-- API Key Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-icon">🔑</div>
+      <h2>Enter Your Gemini API Key</h2>
+      <p>Stored in memory only — never saved or exposed.</p>
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." autocomplete="off"/>
+      <div class="modal-actions"><button class="btn-primary" onclick="saveApiKey()">Save &amp; Continue</button></div>
+      <p class="modal-note"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get a free key →</a></p>
+    </div>
+  </div>
+
+  <!-- Detail popup -->
+  <div class="detail-popup" id="detail-popup">
+    <div class="detail-box">
+      <span class="detail-close" onclick="closeDetail()">✕</span>
+      <h3 id="detail-topic"></h3>
+      <div class="loading-bar" id="detail-loading" style="margin:0 0 1rem;">
+        <div class="spinner"></div> Fetching AI explanation…
+      </div>
+      <p id="detail-text"></p>
+    </div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">🤖 EduSpark AI</div>
+      <nav class="top-nav">
+        <a href="../index.html" class="back-link">← Home</a>
+        <button class="btn-key-change" onclick="changeApiKey()">🔑 Change Key</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="page-container">
+    <h1 class="page-title">🧠 AI Mind Map Generator</h1>
+    <p class="page-subtitle">Paste your syllabus or topic list — get an interactive visual mind map. Click any node for AI details.</p>
+
+    <div class="card">
+      <h4>Syllabus / Topic Input</h4>
+      <div class="form-group">
+        <label>Paste Syllabus or Topic</label>
+        <textarea id="syllabus" rows="6"
+          placeholder="Unit 1: Introduction to AI&#10;Unit 2: Machine Learning&#10;  - Supervised Learning&#10;  - Unsupervised Learning&#10;Unit 3: Deep Learning&#10;  - Neural Networks&#10;  - CNNs"></textarea>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="generateMindMap()">🧠 Generate Mind Map</button>
+      </div>
+    </div>
+
+    <div class="loading-bar" id="loading">
+      <div class="spinner"></div> Building your mind map…
+    </div>
+
+    <div id="mindmap-container">
+      <div id="mindmap-render" class="mindmap-wrap"></div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>EduSpark AI Tools · <a href="../index.html">← Back to All Tools</a></p>
+  </footer>
+
+  <script src="../app.js"></script>
+  <script>
+    async function generateMindMap() {
+      const syllabus = document.getElementById('syllabus').value.trim();
+      if (!syllabus) { showToast('Please enter syllabus text.', 'error'); return; }
+
+      const prompt = `
+Convert the following syllabus/topic list into a hierarchical JSON mind map structure.
+Return ONLY valid JSON (no markdown fences, no extra text) with this structure:
+{
+  "root": "Main Subject Name",
+  "branches": [
+    {
+      "name": "Unit/Topic Name",
+      "children": ["subtopic1", "subtopic2", "subtopic3"]
+    }
+  ]
+}
+
+Syllabus:
+${syllabus}
+      `.trim();
+
+      setLoading('loading', true);
+      document.getElementById('mindmap-container').classList.remove('active');
+
+      try {
+        const raw  = await callGemini(prompt, { temperature: 0.4 });
+        const data = parseGeminiJson(raw);
+        renderMindMap(data);
+        document.getElementById('mindmap-container').classList.add('active');
+        showToast('Mind map generated! Click nodes for details.', 'success');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      } finally {
+        setLoading('loading', false);
+      }
+    }
+
+    function renderMindMap(data) {
+      const el = document.getElementById('mindmap-render');
+      el.innerHTML = '';
+
+      const rootEl = document.createElement('div');
+      rootEl.className = 'mm-item';
+      const rootNode = document.createElement('div');
+      rootNode.className = 'mm-node mm-root';
+      rootNode.textContent = data.root;
+      rootNode.onclick = () => showDetail(data.root);
+      rootEl.appendChild(rootNode);
+      el.appendChild(rootEl);
+
+      const colors = ['#6c63ff','#00d2b4','#f59e0b','#ef4444','#22c55e','#a78bfa','#fb923c'];
+
+      (data.branches || []).forEach((branch, i) => {
+        const section = document.createElement('div');
+        section.className = 'mm-section';
+
+        const branchItem = document.createElement('div');
+        branchItem.className = 'mm-item';
+        const branchNode = document.createElement('div');
+        branchNode.className = 'mm-node mm-branch';
+        branchNode.style.borderColor = colors[i % colors.length];
+        branchNode.textContent = branch.name;
+        branchNode.onclick = () => showDetail(branch.name);
+        branchItem.appendChild(branchNode);
+        section.appendChild(branchItem);
+
+        if (branch.children && branch.children.length) {
+          const childrenWrap = document.createElement('div');
+          childrenWrap.className = 'mm-children';
+          branch.children.forEach(child => {
+            const childItem = document.createElement('div');
+            childItem.className = 'mm-item';
+            const childNode = document.createElement('div');
+            childNode.className = 'mm-node mm-leaf';
+            childNode.textContent = child;
+            childNode.onclick = () => showDetail(child);
+            childItem.appendChild(childNode);
+            childrenWrap.appendChild(childItem);
+          });
+          section.appendChild(childrenWrap);
+        }
+        el.appendChild(section);
+      });
+    }
+
+    async function showDetail(topic) {
+      document.getElementById('detail-topic').textContent = topic;
+      document.getElementById('detail-text').textContent = '';
+      document.getElementById('detail-popup').classList.add('active');
+      setLoading('detail-loading', true);
+
+      try {
+        const text = await callGemini(
+          `Explain "${topic}" in 3-4 sentences, simply for a student.`,
+          { temperature: 0.5, maxTokens: 200 }
+        );
+        document.getElementById('detail-text').textContent = text;
+      } catch (e) {
+        document.getElementById('detail-text').textContent = 'Could not load details: ' + e.message;
+      } finally {
+        setLoading('detail-loading', false);
+      }
+    }
+
+    function closeDetail() {
+      document.getElementById('detail-popup').classList.remove('active');
+    }
+  </script>
+</body>
+</html>
